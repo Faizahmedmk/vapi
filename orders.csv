@@ -1,0 +1,7 @@
+order_id,time,customer_name,flavour,size,quantity,unit_price,total,status
+ORD-1001,19-10-2026 15:46,Jack,cheese,medium,7,10,70,confirmed
+ORD-1002,2026-10-20 11:41:55,Ali,margherita,small,5,9,45,confirmed
+ORD-1003,2026-10-22 11:54:35,Albie,veg supreme,medium,4,13,52,confirmed
+ORD-1004,2026-10-22 11:56:32,John,cheese,small,4,8,32,confirmed
+ORD-1005,2026-10-22 12:05:40,Jack,cheese,large,3,12,36,confirmed
+ORD-1006,2026-10-22 15:51:17,Ali,cheese,small,3,8,24,confirmed

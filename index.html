@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pizza Town – Taste Your Passion</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; background: #f5f6fa; color: #222; }
+  header { background: #c02b2b; color: #fff; padding: 16px 24px; }
+  main { max-width: 1000px; margin: 20px auto; padding: 0 16px; display: grid; gap: 16px; grid-template-columns: 1.3fr 1fr; align-items: start; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  .card { background: #ffffff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  h2 { margin: 0 0 10px; font-size: 18px; }
+  button { padding: 12px 22px; font-size: 16px; border: 0; border-radius: 8px; cursor: pointer; color: #fff; background: #27ae60; }
+  button.stop { background: #c0392b; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #status { margin-left: 12px; font-weight: bold; }
+  #transcript { height: 320px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-top: 12px; background: #fafafa; }
+  .msg { margin: 6px 0; padding: 8px 10px; border-radius: 8px; max-width: 85%; }
+  .assistant { background: #e8f0fe; }
+  .user { background: #e6f7e9; margin-left: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<header><h1 style="margin:0;font-size:22px">🍕Pizza Town – Taste Your Passion</h1></header>
+<main>
+  <section class="card">
+    <h2>Talk to the agent</h2>
+    <button id="btn" disabled>Start Call</button><span id="status">Loading…</span>
+    <div id="transcript"></div>
+    <p style="font-size:13px;color:#666">Allow microphone access when the browser asks. Try: “I want a cheese pizza.”</p>
+  </section>
+  <section class="card">
+    <h2>Orders (from orders.csv)</h2>
+    <table><thead><tr><th>ID</th><th>Name</th><th>Order</th><th>Total</th></tr></thead><tbody id="orders"></tbody></table>
+  </section>
+</main>
+
+<script type="module">
+import Vapi from "https://esm.sh/@vapi-ai/web";
+
+const btn = document.getElementById('btn');
+const statusEl = document.getElementById('status');
+const box = document.getElementById('transcript');
+let vapi, assistantId, inCall = false;
+
+const setStatus = (t) => (statusEl.textContent = t);
+const addMsg = (role, text) => {
+  const d = document.createElement('div');
+  d.className = 'msg ' + (role === 'user' ? 'user' : 'assistant');
+  d.textContent = (role === 'user' ? 'You: ' : 'Agent: ') + text;
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+};
+
+async function refresh() {
+  try {
+    const orders = await (await fetch('/api/orders')).json();
+    document.getElementById('orders').innerHTML = orders.length
+      ? orders.map(o => `<tr><td>${o.order_id}</td><td>${o.customer_name}</td><td>${o.quantity} × ${o.size} ${o.flavour}</td><td>$${o.total}</td></tr>`).join('')
+      : '<tr><td colspan="4">No orders yet</td></tr>';
+  } catch (e) { console.error(e); }
+}
+
+async function init() {
+  const cfg = await (await fetch('/api/config')).json();
+  if (!cfg.publicKey || !cfg.assistantId) { setStatus('Missing VAPI_PUBLIC_KEY or ASSISTANT_ID in .env'); return; }
+  assistantId = cfg.assistantId;
+  vapi = new Vapi(cfg.publicKey);
+
+  vapi.on('call-start', () => { inCall = true; btn.textContent = 'End Call'; btn.className = 'stop'; btn.disabled = false; setStatus('Call in progress'); });
+  vapi.on('call-end', () => { inCall = false; btn.textContent = 'Start Call'; btn.className = ''; btn.disabled = false; setStatus('Call ended'); refresh(); });
+  vapi.on('speech-start', () => setStatus('Agent speaking…'));
+  vapi.on('speech-end', () => setStatus('Listening…'));
+  vapi.on('message', (m) => {
+    if (m.type === 'transcript' && m.transcriptType === 'final') addMsg(m.role, m.transcript);
+    if (m.type === 'tool-calls' || m.type === 'function-call') setTimeout(refresh, 1500);
+  });
+  vapi.on('error', (e) => { console.error(e); setStatus('Error – check browser console (F12)'); btn.disabled = false; });
+
+  btn.disabled = false; setStatus('Ready');
+}
+
+btn.onclick = () => {
+  btn.disabled = true;
+  if (inCall) { vapi.stop(); return; }
+  box.innerHTML = ''; setStatus('Connecting…');
+  vapi.start(assistantId);
+};
+
+init(); refresh(); setInterval(refresh, 4000);
+</script>
+</body>
+</html>
